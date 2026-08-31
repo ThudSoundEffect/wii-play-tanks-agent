@@ -17,7 +17,7 @@ This project is actively being trained and debugged. It is **not** a finished, t
 Where most of the game specific logic lives, on top of the raw env:
 
 - **Radar encoding**: agent and aim radar rays are cast and encoded as `[normalized_distance, one_hot(detect_type)]` per ray (miss / wall / one of several threat categories).
-- **Aim forecasting**: for each of the 24 aim bins, a ray is marched forward against a wall mask for the captured frame. On a wall hit, the ray reflects and continues, so the system can predict ricochet trajectories. Each bin fires 3 sub-rays (±5°) rather than one, to smooth over single-pixel wall-mask noise. Per bin, this produces: predicted hit/miss, a "lead shot" flag for hitting a moving threat's predicted position, and a self-danger flag for bounce paths end near the agent.
+- **Aim forecasting**: for each of the 24 aim bins, a ray is marched forward against a wall mask for the captured frame. On a wall hit, the ray reflects and continues, so the system can predict ricochet trajectories. Each bin fires 3 sub-rays (±5°) rather than one, to smooth over single-pixel wall-mask noise. Per bin, this produces: predicted hit or miss, a lead shot flag for hitting a moving threat's predicted position, and a self-danger flag for bounce paths that end near the agent.
 - **`best_aim_bin`**: the bin with the best predicted outcome. Used both as a feature fed into the observation and as the supervised target for the auxiliary aim-prediction loss.
 - **Action masking**: exposes `action_masks()` (used by `sb3_contrib`'s `ActionMasker`) to disable invalid game actions i.e. firing is masked out once the per-curriculum-stage bullet limit has been reached
 - **Reward shaping**, grouped into logged categories:
