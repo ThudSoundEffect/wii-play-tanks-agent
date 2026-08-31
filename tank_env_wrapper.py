@@ -56,14 +56,7 @@ _AIM_BIN_SIN = np.sin(np.deg2rad(np.arange(AIM_DIRECTIONS) * 360.0 / AIM_DIRECTI
 SUB_RAYS_PER_BIN = 3
 SUB_ANGLE_OFFSETS_RAD = np.deg2rad(np.linspace(-5.0, 5.0, SUB_RAYS_PER_BIN))
 
-# Steps (~px, since each step is a unit vector) a ray must travel from the
-# firer's own position before it starts hit-testing against wall_mask /
-# threat_type_map on the pre-bounce leg. Without this, the first few steps
-# of every ray land on the firer's own tank sprite -- which isn't marked in
-# wall_mask but does fall inside the generic threat gray range / below
-# FIELD_MIN -- so every bin registers a "hit" at r~0 regardless of
-# direction. Mirrors the r >= 5 self-distance check already used for the
-# post-bounce leg below.
+
 SELF_CLEARANCE_STEPS = 5
 
 
@@ -108,12 +101,6 @@ def _march_single_ray(
             if self_dist <= 5.0:
                 break
 
-        # On the pre-bounce leg, don't hit-test until the ray has actually
-        # left the firer's own sprite footprint -- otherwise every bin
-        # "hits" its own tank on step 0-1 and never gets to march at all.
-        # Once bounced, the ray originates from a wall pixel rather than
-        # the firer's body, so normal hit-testing applies from the start
-        # of that leg.
         skip_self_hit_test = (not bounced) and (r < SELF_CLEARANCE_STEPS)
 
         if not skip_self_hit_test:
@@ -233,11 +220,11 @@ _THREAT_TYPE_DEBUG_COLORS = [
     (0, 128, 255),    # type 1 - orange
     (0, 255, 255),    # type 2 - yellow
     (0, 255, 0),      # type 3 - green
-    (255, 255, 0),    # type 4 - cyan
-    (255, 128, 0),    # type 5 - azure
+    (255, 255, 0),    # type 4 - teal
+    (255, 128, 0),    # type 5 - light blue
     (255, 0, 0),      # type 6 - blue
-    (255, 0, 255),    # type 7 - magenta
-    (128, 0, 255),    # type 8 - pink/violet
+    (255, 0, 255),    # type 7 - purple
+    (128, 0, 255),    # type 8 - pink
     (203, 192, 255),  # type 9 - light pink
 ]
 
@@ -462,8 +449,6 @@ class TankEnvSB3Wrapper(gym.Wrapper):
         reward_components["aim_choice_penalty"] = aim_choice_penalty_value
         self.window_aim_steps += 1
 
-        reward_components.update(self._self_destruct_penalty(prev_lives, prev_bullets))
-
         wall_block = self._wall_detect()
         self._movement_mask = ~wall_block
 
@@ -517,7 +502,6 @@ class TankEnvSB3Wrapper(gym.Wrapper):
         }
         guardrail = {
             "life_lost": rewards.get("life_lost", 0.0),
-            "self_destruct_penalty": rewards.get("self_destruct_penalty", 0.0),
         }
 
         return {"core": core, "shaping": shaping, "penalty": penalty, "guardrail": guardrail}
@@ -891,16 +875,6 @@ class TankEnvSB3Wrapper(gym.Wrapper):
         distance_factor = angular_dist / (AIM_DIRECTIONS / 2.0)
         scale = abs(self.weights.get("aim_choice_penalty_scale", 1.0))
         return -distance_factor * scale
-
-    def _self_destruct_penalty(self, prev_lives: int, prev_bullets: int) -> dict:
-        components = {
-            "self_destruct_penalty": 0.0,
-        }
-        if prev_lives > self.env.lives:
-            if self.env.bullets_remaining > prev_bullets:
-                components["self_destruct_penalty"] = self.weights["self_destruct_penalty"]
-
-        return components
 
     def _decode_action(self, action: np.ndarray) -> dict:
         return {
