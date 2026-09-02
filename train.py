@@ -2,12 +2,12 @@
 import os
 
 import numpy as np
+from sb3_contrib import MaskablePPO
 from sb3_contrib.common.wrappers import ActionMasker
 from stable_baselines3.common.monitor import Monitor
 
 from config import EMULATOR_CONFIG
 from curriculum import CurriculumCallback, CurriculumCheckpointCallback, EmulatorPauseCallback
-from custom_ppo import AuxAimMaskablePPO
 from feature_extractor import TankCNN
 from tank_env_wrapper import make_tank_env
 
@@ -66,7 +66,7 @@ def main() -> None:
 
     print("[Train] Initialising model...")
     if MODEL_PATH is None:
-        model = AuxAimMaskablePPO(
+        model = MaskablePPO(
             "MultiInputPolicy",
             env,
             verbose=1,
@@ -78,11 +78,10 @@ def main() -> None:
             gae_lambda=0.998,
             target_kl=0.02,
             n_epochs=10,
-            aux_loss_coef=0.1,
             learning_rate=6e-4,
         )
     else:
-        model = AuxAimMaskablePPO.load(MODEL_PATH, env=env)
+        model = MaskablePPO.load(MODEL_PATH, env=env)
 
     print(
         f"[Train] Starting training for {TOTAL_TIMESTEPS:,} timesteps | "

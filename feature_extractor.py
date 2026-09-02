@@ -95,10 +95,6 @@ class TankCNN(BaseFeaturesExtractor):
             nn.ReLU(inplace=True),
         )
 
-        num_aim_bins = observation_space["pointer"].n
-        self.aim_aux_head = nn.Linear(head_dim, num_aim_bins)
-        self._last_aim_aux_logits: torch.Tensor | None = None
-
         buttons_in_dim = flatdim(observation_space["buttons"])
         self.buttons_head = nn.Sequential(
             nn.Linear(buttons_in_dim + shared_dim, 64),
@@ -154,7 +150,6 @@ class TankCNN(BaseFeaturesExtractor):
             dim=1,
         )
         pointer_embed = self.pointer_head(pointer_in)
-        self._last_aim_aux_logits = self.aim_aux_head(pointer_embed)
 
         buttons_in = torch.cat([shared_ctx, buttons], dim=1)
         buttons_embed = self.buttons_head(buttons_in)
