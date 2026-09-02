@@ -35,6 +35,8 @@ NUM_THREAT_TYPES = len(THREAT_VALUES)
 
 BULLET_THREAT_TYPE = 0
 
+THREAT_TYPE_SCORE = np.linspace(0.3, 1.0, NUM_THREAT_TYPES, dtype=np.float32)
+
 DETECT_WALL = 1.0
 DETECT_THREAT_BASE = 2.0
 NUM_DETECT_CLASSES = int(DETECT_THREAT_BASE) + NUM_THREAT_TYPES
@@ -616,9 +618,11 @@ class TankEnvSB3Wrapper(gym.Wrapper):
             return -1 * scale, threat_detected, self_danger
 
         if valid_lead and not valid_direct:
-            return scale * self.weights.get("lead_shot_bonus_scale", 1.5), threat_detected, self_danger
-        elif threat_detected:
-            return scale, threat_detected, self_danger
+            type_score = float(THREAT_TYPE_SCORE[lead_hit_type])
+            return scale * type_score * self.weights.get("lead_shot_bonus_scale", 1.5), threat_detected, self_danger
+        elif valid_direct:
+            type_score = float(THREAT_TYPE_SCORE[hit_type])
+            return scale * type_score, threat_detected, self_danger
 
         return 0.0, threat_detected, self_danger
 
