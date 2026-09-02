@@ -35,8 +35,7 @@ All weights are staged per curriculum level in `config.py`, ramping up penalties
 
 ## Policy & Training
 
-- **Feature extractor** (`feature_extractor.py`): multibranch CNN: a shared CNN + status encoder feeding into three specialized subheads (movement, aiming, actions), and a small auxiliary head that predicts `best_aim_bin` from the pointer embedding.
-- **Custom PPO** (`custom_ppo.py`): extends `sb3_contrib.MaskablePPO` to add the auxiliary aim prediction loss into the training step to give the aim subnetwork a denser gradient signal than standard PPO.
+- **Feature extractor** (`feature_extractor.py`): multi-branch CNN: a shared CNN status encoder feeding into three specialized subheads (movement, aiming, actions).
 
 ## Current focus
 
