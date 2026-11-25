@@ -13,9 +13,10 @@ STAGE_ENEMY_NORM = {0: 0.0, 1: 1.0, 2: 2.0, 3: 5.0, 4: 9.0, 5: 11.0, 6: 15.0, 7:
 
 CURRICULUM_WEIGHTS = {
     1: {
-        "enemy_destroyed": 50.0,
-        "life_lost": -10.0,
+        "enemy_destroyed": 50.0,       # High reward spike for early target kills
+        "life_lost": -10.0,             # Balanced death penalty
         "level_advance": 25.0,
+        "self_destruct_penalty": 0,
 
         "radar_penalty_max_weight": 0.9,
         "radar_penalty_scale": 0.5,
@@ -32,6 +33,7 @@ CURRICULUM_WEIGHTS = {
         "enemy_destroyed": 50.0,
         "life_lost": -20.0,
         "level_advance": 50.0,
+        "self_destruct_penalty": 0,
 
         "radar_penalty_max_weight": 0.9,
         "radar_penalty_scale": 0.5,
@@ -48,6 +50,7 @@ CURRICULUM_WEIGHTS = {
         "enemy_destroyed": 50.0,
         "life_lost": -20.0,
         "level_advance": 50.0,
+        "self_destruct_penalty": -10.0,
 
         "radar_penalty_max_weight": 0.9,
         "radar_penalty_scale": 0.5,
@@ -64,6 +67,7 @@ CURRICULUM_WEIGHTS = {
         "enemy_destroyed": 50.0,
         "life_lost": -20.0,
         "level_advance": 50.0,
+        "self_destruct_penalty": -10.0,
 
         "radar_penalty_max_weight": 0.9,
         "radar_penalty_scale": 0.5,
@@ -80,6 +84,7 @@ CURRICULUM_WEIGHTS = {
         "enemy_destroyed": 50.0,
         "life_lost": -20.0,
         "level_advance": 50.0,
+        "self_destruct_penalty": -10.0,
 
         "radar_penalty_max_weight": 0.9,
         "radar_penalty_scale": 0.5,
@@ -96,6 +101,7 @@ CURRICULUM_WEIGHTS = {
         "enemy_destroyed": 50.0,
         "life_lost": -20.0,
         "level_advance": 50.0,
+        "self_destruct_penalty": -10.0,
 
         "radar_penalty_max_weight": 0.9,
         "radar_penalty_scale": 0.5,
@@ -112,6 +118,7 @@ CURRICULUM_WEIGHTS = {
         "enemy_destroyed": 50.0,
         "life_lost": -20.0,
         "level_advance": 50.0,
+        "self_destruct_penalty": -10.0,
 
         "radar_penalty_max_weight": 0.9,
         "radar_penalty_scale": 0.5,

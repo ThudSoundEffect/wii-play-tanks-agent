@@ -5,14 +5,19 @@ from gymnasium import spaces
 from gymnasium.spaces.utils import flatdim
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 
+# radar[..., 1] detect-type encoding, mirrored from tank_env_wrapper.py:
+# 0 = miss, 1 = wall, 2..11 = threat entity type (2 + entity index).
+# Kept as a plain int here (rather than importing the wrapper) to avoid
+# coupling the policy module to the env wrapper module.
 NUM_DETECT_CLASSES = 12
 
 
 class TankCNN(BaseFeaturesExtractor):
     """Refactored multi-branch feature extractor for Wii Play Tanks.
 
-    Extracts a shared contextual representation with
-    three embeddings for movement, aim, and buttons.
+    Extracts a shared contextual representation (CNN + core status) alongside
+    three specialized embeddings tailored for D-Pad (movement), Pointer (aiming),
+    and Buttons (actions).
     """
 
     def __init__(
@@ -67,6 +72,10 @@ class TankCNN(BaseFeaturesExtractor):
             nn.ReLU(inplace=True),
         )
 
+        # Each radar ray now encodes as [normalized_distance, one_hot(detect_type)]
+        # instead of [distance, raw_type_scalar] — a raw 0-11 type code fed
+        # straight into a linear layer would imply a false ordinal
+        # relationship between e.g. wall and threat-type-9.
         agent_radar_rays = observation_space["agent_radar"].shape[0]
         agent_radar_encoded_dim = agent_radar_rays * (1 + NUM_DETECT_CLASSES)
 
@@ -95,6 +104,24 @@ class TankCNN(BaseFeaturesExtractor):
             nn.ReLU(inplace=True),
         )
 
+        # Auxiliary head: predicts the privileged best_aim_bin label from
+        # pointer_embed via supervised cross-entropy (see custom_ppo.py).
+        # This is trained alongside the RL objective to give the pointer
+        # sub-network a dense, low-variance gradient toward good aim bins,
+        # rather than relying solely on PPO's noisy advantage-weighted
+        # gradient to discover a mapping the input already encodes (via
+        # aim_bin_scores/best_aim_bin above). num_aim_bins is read off the
+        # pointer action space rather than importing AIM_DIRECTIONS, to
+        # keep this module decoupled from tank_env_wrapper.py.
+        num_aim_bins = observation_space["pointer"].n
+        self.aim_aux_head = nn.Linear(head_dim, num_aim_bins)
+        # Populated on every forward() call; read by the trainer right
+        # after policy.evaluate_actions() for the same minibatch. Not a
+        # registered buffer/parameter — it's just a live tensor handle so
+        # gradients keep flowing back through aim_aux_head -> pointer_head
+        # -> shared_encoder when the aux loss is backpropagated.
+        self._last_aim_aux_logits: torch.Tensor | None = None
+
         buttons_in_dim = flatdim(observation_space["buttons"])
         self.buttons_head = nn.Sequential(
             nn.Linear(buttons_in_dim + shared_dim, 64),
@@ -109,7 +136,8 @@ class TankCNN(BaseFeaturesExtractor):
         max_dist: torch.Tensor,
     ) -> torch.Tensor:
         """Normalize the distance channel to [0, 1] and one-hot encode the
-        detect-type channel (miss / wall / one of 10 threat types).
+        detect-type channel (miss / wall / one of 10 threat types) instead
+        of feeding its raw category code in as a bare scalar.
         """
         dist = (radar[..., 0] / max_dist).unsqueeze(-1)
 
@@ -150,6 +178,7 @@ class TankCNN(BaseFeaturesExtractor):
             dim=1,
         )
         pointer_embed = self.pointer_head(pointer_in)
+        self._last_aim_aux_logits = self.aim_aux_head(pointer_embed)
 
         buttons_in = torch.cat([shared_ctx, buttons], dim=1)
         buttons_embed = self.buttons_head(buttons_in)

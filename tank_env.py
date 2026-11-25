@@ -227,7 +227,7 @@ class TankEnv(gym.Env):
         self.user_y = self._capture_h / 2 - mem_y
 
         self.user_x_norm = float(np.clip(self.user_x / self._capture_w, 0.0, 1.0))
-        self.user_y_norm = float(np.clip((self.user_y - 35) / self._capture_h, 0.0, 1.0))
+        self.user_y_norm = float(np.clip(self.user_y / self._capture_h, 0.0, 1.0))
 
     def _get_obs(self, buttons: np.ndarray, dpad: int, pointer: int) -> dict:
 

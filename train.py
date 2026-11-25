@@ -2,12 +2,14 @@
 import os
 
 import numpy as np
-from sb3_contrib import MaskablePPO
 from sb3_contrib.common.wrappers import ActionMasker
+from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
+from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
 from config import EMULATOR_CONFIG
 from curriculum import CurriculumCallback, CurriculumCheckpointCallback, EmulatorPauseCallback
+from custom_ppo import AuxAimMaskablePPO
 from feature_extractor import TankCNN
 from tank_env_wrapper import make_tank_env
 
@@ -15,7 +17,7 @@ MODELS_DIR = "./models"
 
 SAVE_FREQ = 50_000
 EVAL_FREQ = 60
-TOTAL_TIMESTEPS = 10_000_000
+TOTAL_TIMESTEPS = 100_000_000
 
 # Set None to train from scratch.
 MODEL_PATH = None
@@ -26,6 +28,28 @@ _POLICY_KWARGS = dict(
         head_dim=64,
     ),
 )
+
+
+class VecNormalizeCheckpointCallback(BaseCallback):
+    """Saves VecNormalize's running reward stats alongside CurriculumCheckpointCallback's
+    model checkpoints. Without this, resuming from a checkpoint restarts reward
+    normalization from scratch, which reintroduces the same value-target
+    instability the normalization was added to fix.
+    """
+
+    def __init__(self, save_freq: int, save_path: str, name_prefix: str = "tank_model") -> None:
+        super().__init__()
+        self.save_freq = save_freq
+        self.save_path = save_path
+        self.name_prefix = name_prefix
+
+    def _on_step(self) -> bool:
+        if self.n_calls % self.save_freq == 0:
+            path = os.path.join(
+                self.save_path, f"{self.name_prefix}_{self.num_timesteps}_steps_vecnormalize.pkl"
+            )
+            self.training_env.save(path)
+        return True
 
 
 def mask_fn(env) -> np.ndarray:
@@ -52,6 +76,10 @@ def main() -> None:
     )
 
     pause_callback = EmulatorPauseCallback()
+    vecnorm_checkpoint_callback = VecNormalizeCheckpointCallback(
+        save_freq=SAVE_FREQ,
+        save_path=MODELS_DIR,
+    )
 
     print("[Train] Building environment...")
     raw_env = make_tank_env(
@@ -62,26 +90,39 @@ def main() -> None:
     )
     masked_env = ActionMasker(raw_env, mask_fn)
     env = Monitor(masked_env)
+    env = DummyVecEnv([lambda: env])
+    env = VecNormalize(env, norm_obs=False, norm_reward=True, clip_reward=10.0, gamma=0.995)
     print("[Train] Environment ready.")
 
     print("[Train] Initialising model...")
     if MODEL_PATH is None:
-        model = MaskablePPO(
+        model = AuxAimMaskablePPO(
             "MultiInputPolicy",
             env,
             verbose=1,
             n_steps=8192,
             batch_size=512,
-            ent_coef=0.1,
+            ent_coef=0.001,
             policy_kwargs=_POLICY_KWARGS,
             gamma=0.995,
             gae_lambda=0.998,
+            clip_range_vf=0.2,
             target_kl=0.02,
             n_epochs=10,
+            aux_loss_coef=0.1,
             learning_rate=6e-4,
         )
     else:
-        model = MaskablePPO.load(MODEL_PATH, env=env)
+        model = AuxAimMaskablePPO.load(MODEL_PATH, env=env)
+        vecnorm_path = MODEL_PATH.replace(".zip", "_vecnormalize.pkl")
+        if os.path.exists(vecnorm_path):
+            env = VecNormalize.load(vecnorm_path, env.venv)
+            model.set_env(env)
+        else:
+            print(
+                f"[Train] WARNING: no VecNormalize stats found at {vecnorm_path}; "
+                "resuming with freshly-initialized reward normalization stats."
+            )
 
     print(
         f"[Train] Starting training for {TOTAL_TIMESTEPS:,} timesteps | "
@@ -92,7 +133,7 @@ def main() -> None:
 
     model.learn(
         total_timesteps=TOTAL_TIMESTEPS,
-        callback=[checkpoint_callback, curriculum_callback, pause_callback],
+        callback=[checkpoint_callback, curriculum_callback, pause_callback, vecnorm_checkpoint_callback],
         reset_num_timesteps=False,
     )
 
